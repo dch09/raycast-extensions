@@ -1,24 +1,12 @@
 import path from "path";
+import { Alert, captureException, confirmAlert, getSelectedFinderItems, showHUD, showToast, Toast } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 
-import { Alert, confirmAlert, getSelectedFinderItems, showToast, Toast } from "@raycast/api";
-import { runAppleScript } from "run-applescript";
+import { hasData, importData, installedWrapper, openTaskManager } from "./lib/tim";
 
-import { getExportData } from "./export";
-import openTaskManager from "./openTaskManager";
-import { buildScriptEnsuringTimIsRunning, checkIfTimInstalled, showNotInstalledToast } from "./utils";
-
-async function existsData(): Promise<boolean> {
-  const jsonString = await getExportData();
-  const data = JSON.parse(jsonString);
-  return Object.keys(data.tasks ?? {}).length > 0;
-}
-
-export default async () => {
-  const timAvailable = await checkIfTimInstalled();
-  if (!timAvailable) return showNotInstalledToast();
-
+export default installedWrapper(async () => {
   try {
-    showToast({
+    await showToast({
       title: "Importing data…",
       style: Toast.Style.Animated,
     });
@@ -42,7 +30,7 @@ export default async () => {
     }
 
     if (
-      (await existsData()) &&
+      (await hasData()) &&
       (await confirmAlert({
         title: "Warning",
         message: "If you import this file, current data will be lost!",
@@ -55,19 +43,11 @@ export default async () => {
       return;
     }
 
-    const script = buildScriptEnsuringTimIsRunning(`import (POSIX file "${file.path}")`);
-    await runAppleScript(script);
-    showToast({
-      title: "Success",
-      message: "File imported",
-      style: Toast.Style.Success,
-    });
-    openTaskManager();
+    await importData(file.path);
+    await showHUD("File imported", { clearRootSearch: true });
+    await openTaskManager();
   } catch (error) {
-    showToast({
-      title: "Error",
-      message: "No file selected in Finder",
-      style: Toast.Style.Failure,
-    });
+    captureException(error);
+    await showFailureToast(error, { title: "Failed to import data" });
   }
-};
+});

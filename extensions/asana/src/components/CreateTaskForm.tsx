@@ -6,8 +6,8 @@ import {
   Icon,
   useNavigation,
   Toast,
-  getPreferenceValues,
   showToast,
+  getPreferenceValues,
 } from "@raycast/api";
 import { format } from "date-fns";
 import { FormValidation, getAvatarIcon, useCachedState, useForm } from "@raycast/utils";
@@ -38,17 +38,7 @@ export default function CreateTaskForm(props: {
       const toast = await showToast({ style: Toast.Style.Animated, title: "Creating task" });
 
       try {
-        const { signature } = getPreferenceValues<{ signature: boolean }>();
-
-        let htmlNotes = `<body>${values.description}`;
-        if (signature) {
-          if (values.description) {
-            htmlNotes += "\n--\n";
-          }
-
-          htmlNotes += `Created via <a href="https://www.raycast.com/?ref=signatureAsana">Raycast</a>`;
-        }
-        htmlNotes += "</body>";
+        const htmlNotes = `<body>${values.description}</body>`;
 
         const customFieldsEntries = Object.entries(values).filter(
           ([key, value]) => key.startsWith("field-") && value !== ""
@@ -142,6 +132,7 @@ export default function CreateTaskForm(props: {
 
   const hasCustomFields = customFields && customFields.length > 0;
   const selectedWorkspace = workspaces?.find((workspace) => values.workspace === workspace.gid);
+  const { showStartDate } = getPreferenceValues<Preferences.CreateTask>();
 
   return (
     <Form
@@ -192,7 +183,7 @@ export default function CreateTaskForm(props: {
           );
         })}
       </Form.Dropdown>
-      {selectedWorkspace?.is_organization ? (
+      {selectedWorkspace?.is_organization && showStartDate ? (
         <Form.DatePicker title="Start Date" type={Form.DatePicker.Type.Date} {...itemProps.start_date} />
       ) : null}
       <Form.DatePicker title="Due Date" type={Form.DatePicker.Type.Date} {...itemProps.due_date} />

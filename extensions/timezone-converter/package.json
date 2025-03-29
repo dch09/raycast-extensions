@@ -7,7 +7,8 @@
   "icon": "command-icon.png",
   "author": "joao.mainka",
   "contributors": [
-    "pernielsentikaer"
+    "pernielsentikaer",
+    "ridemountainpig"
   ],
   "license": "MIT",
   "commands": [
@@ -19,7 +20,7 @@
     }
   ],
   "dependencies": {
-    "@raycast/api": "^1.47.3",
+    "@raycast/api": "^1.48.5",
     "@raycast/utils": "^1.4.16",
     "luxon": "^3.2.1"
   },
@@ -40,5 +41,34 @@
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
     "publish": "ray publish"
-  }
+  },
+  "preferences": [
+    {
+      "name": "sortTimezones",
+      "description": "Sort added timezones",
+      "type": "dropdown",
+      "required": true,
+      "title": "Sort Options",
+      "placeholder": "Sort the list of added timezones",
+      "data": [
+        {
+          "title": "Sort Alphabetically",
+          "value": "alphabetically"
+        },
+        {
+          "title": "Sort Manually",
+          "value": "manually"
+        }
+      ]
+    },
+    {
+      "name": "hideWorldMap",
+      "description": "Hide world map to display more time zones in the list",
+      "label": "Hide World Map",
+      "type": "checkbox",
+      "required": false,
+      "title": "Hide World Map",
+      "default": false
+    }
+  ]
 }

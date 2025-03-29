@@ -1,6 +1,5 @@
-import { Action, ActionPanel, Detail, popToRoot, confirmAlert, Icon, LaunchProps } from "@raycast/api";
+import { Action, ActionPanel, confirmAlert, Detail, Icon, LaunchProps, popToRoot } from "@raycast/api";
 import { useEffect, useState } from "react";
-import fetch from "node-fetch";
 
 interface Website {
   url: string;
@@ -14,7 +13,7 @@ export default function Command(props: LaunchProps<{ arguments: Website }>) {
   const [urlError, setUrlError] = useState<string | undefined>();
   const [website, setWebsite] = useState<string | undefined>();
   const [ogImage, setOgImage] = useState<string | undefined>();
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const getWebsiteInfo = (data: string) => {
     const title = data.match(/<title>(.*?)<\/title>/)?.[1];
@@ -74,7 +73,7 @@ export default function Command(props: LaunchProps<{ arguments: Website }>) {
         "(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*" +
         "(\\?[;&a-z\\d%_.~+=-]*)?" +
         "(\\#[-a-z\\d_]*)?$",
-      "i"
+      "i",
     );
 
     return !!pattern.test(url);
@@ -84,13 +83,12 @@ export default function Command(props: LaunchProps<{ arguments: Website }>) {
     try {
       const response = await fetch(url);
       return response.status === 200;
-    } catch (error) {
+    } catch {
       return false;
     }
   };
 
   const submitForm = async (values: Record<string, string>) => {
-    setLoading(true);
     if (values.url) {
       if (validateUrl(values.url) && (await urlReachable(values.url))) {
         await websiteInfo(String(values.url));
@@ -133,6 +131,7 @@ export default function Command(props: LaunchProps<{ arguments: Website }>) {
 
   return (
     <>
+      {loading && <Detail isLoading={true} navigationTitle="Getting data..." />}
       {result && !loading && (
         <Detail
           navigationTitle={`Scraped ${website}`}
@@ -184,9 +183,22 @@ export default function Command(props: LaunchProps<{ arguments: Website }>) {
                       clearSearchBar: false,
                     });
                   }}
-                  shortcut={{ modifiers: ["cmd"], key: "a" }}
                   icon={Icon.Repeat}
                 />
+                {sidebar.title && (
+                  <Action.CopyToClipboard
+                    title="Copy Page Title"
+                    content={sidebar.title}
+                    shortcut={{ modifiers: ["cmd", "shift"], key: "t" }}
+                  />
+                )}
+                {sidebar.description && (
+                  <Action.CopyToClipboard
+                    title="Copy Page Description"
+                    content={sidebar.description}
+                    shortcut={{ modifiers: ["cmd", "shift"], key: "d" }}
+                  />
+                )}
               </ActionPanel>
             )
           }

@@ -1,6 +1,6 @@
 import { ReactElement } from "react";
 import { Action, ActionPanel, closeMainWindow, getPreferenceValues, Icon } from "@raycast/api";
-import { openNewTab, setActiveTab } from "../actions";
+import { closeActiveTab, openNewTab, setActiveTab } from "../actions";
 import { Preferences, SettingsProfileOpenBehaviour, Tab } from "../interfaces";
 import { useCachedState } from "@raycast/utils";
 import { CHROME_PROFILE_KEY, DEFAULT_CHROME_PROFILE_ID } from "../constants";
@@ -17,7 +17,7 @@ function NewTabActions({ query }: { query?: string }): ReactElement {
 
   return (
     <ActionPanel title="New Tab">
-      <ActionPanel.Item
+      <Action
         onAction={() => openNewTab({ query, profileCurrent, openTabInProfile })}
         title={query ? `Search "${query}"` : "Open Empty Tab"}
       />
@@ -25,11 +25,23 @@ function NewTabActions({ query }: { query?: string }): ReactElement {
   );
 }
 
-function TabListItemActions({ tab }: { tab: Tab }) {
+function TabListItemActions({ tab, onTabClosed }: { tab: Tab; onTabClosed?: () => void }) {
   return (
     <ActionPanel title={tab.title}>
       <GoToTab tab={tab} />
       <Action.CopyToClipboard title="Copy URL" content={tab.url} />
+      <Action.CopyToClipboard
+        title="Copy Title"
+        content={tab.title}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "enter" }}
+      />
+      <CloseTab tab={tab} onTabClosed={onTabClosed} />
+      <ActionPanel.Section>
+        <Action.CreateQuicklink
+          quicklink={{ link: tab.url, name: tab.title, application: "Google Chrome" }}
+          shortcut={{ modifiers: ["cmd"], key: "s" }}
+        />
+      </ActionPanel.Section>
     </ActionPanel>
   );
 }
@@ -48,12 +60,9 @@ function HistoryItemActions({
 
   return (
     <ActionPanel title={title}>
-      <ActionPanel.Item
-        onAction={() => openNewTab({ url, profileOriginal, profileCurrent, openTabInProfile })}
-        title={"Open"}
-      />
+      <Action onAction={() => openNewTab({ url, profileOriginal, profileCurrent, openTabInProfile })} title={"Open"} />
       <ActionPanel.Section title={"Open in profile"}>
-        <ActionPanel.Item
+        <Action
           onAction={() =>
             openNewTab({
               url,
@@ -64,7 +73,7 @@ function HistoryItemActions({
           }
           title={"Open in current profile"}
         />
-        <ActionPanel.Item
+        <Action
           onAction={() =>
             openNewTab({
               url,
@@ -83,9 +92,34 @@ function HistoryItemActions({
 
 function GoToTab(props: { tab: Tab }) {
   async function handleAction() {
-    await setActiveTab(props.tab);
-    await closeMainWindow();
+    try {
+      await setActiveTab(props.tab);
+      await closeMainWindow();
+    } catch (e) {
+      if (e instanceof Error) {
+        throw new Error("Issue with tab: '" + props.tab.sourceLine + "'\n" + e.message);
+      } else {
+        throw e;
+      }
+    }
   }
 
   return <ActionPanel.Item title="Open Tab" icon={{ source: Icon.Eye }} onAction={handleAction} />;
+}
+
+function CloseTab(props: { tab: Tab; onTabClosed?: () => void }) {
+  async function handleAction() {
+    await closeActiveTab(props.tab);
+    await closeMainWindow();
+    props.onTabClosed?.();
+  }
+
+  return (
+    <Action
+      title="Close Tab"
+      icon={{ source: Icon.XMarkCircle }}
+      onAction={handleAction}
+      shortcut={{ modifiers: ["cmd", "shift"], key: "w" }}
+    />
+  );
 }

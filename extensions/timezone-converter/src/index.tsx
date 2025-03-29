@@ -1,12 +1,30 @@
-import { Action, ActionPanel, Alert, Color, Detail, Form, Icon, confirmAlert, useNavigation } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Alert,
+  Color,
+  Detail,
+  Form,
+  Icon,
+  confirmAlert,
+  useNavigation,
+  getPreferenceValues,
+  List,
+} from "@raycast/api";
 import { useCachedState } from "@raycast/utils";
 import { DateTime, IANAZone } from "luxon";
 import { Fragment, createContext, useCallback, useContext, useMemo, useState } from "react";
 
-const ALL_TIMEZONES = (Intl as any).supportedValuesOf("timeZone");
+interface Preferences {
+  sortTimezones: "manually" | "alphabetically";
+  hideWorldMap: boolean;
+}
+
+const preferences = getPreferenceValues<Preferences>();
+const ALL_TIMEZONES = ["UTC", ...(Intl as any).supportedValuesOf("timeZone")];
 
 function formatZoneName(zoneName: string) {
-  return zoneName.replaceAll("/", " - ").replaceAll("_", " ");
+  return zoneName?.replaceAll("/", " - ").replaceAll("_", " ");
 }
 
 // function hoursDiffBetween(date1: DateTime, date2: DateTime) {
@@ -88,7 +106,7 @@ function Timezones() {
   function toggleTimezone(tz?: string) {
     if (!tz) return;
     const tzName = tz.replace(/ (\(.*\))/gim, "");
-    if (selectedTimezones?.includes(tzName)) {
+    if (selectedTimezones.includes(tzName)) {
       selectedTimezones.splice(selectedTimezones.indexOf(tzName), 1);
     } else {
       selectedTimezones.push(tzName);
@@ -96,99 +114,232 @@ function Timezones() {
     setSelectedTimezones(selectedTimezones);
   }
 
-  return (
-    <TimezoneCotext.Provider value={{ customTime: time }}>
-      <Detail
-        markdown={markdown(time, isCustom)}
-        actions={
-          <ActionPanel>
-            <ActionPanel.Submenu title="Add Timezones" icon={Icon.Globe}>
-              <ActionPanel.Section title="Selected">
-                {selectedTimezones?.map((tz) => (
+  const addedTimezones = preferences.sortTimezones === "alphabetically" ? selectedTimezones.sort() : selectedTimezones;
+
+  function updateSort(addedTimezones: string[]) {
+    setSelectedTimezones(addedTimezones);
+  }
+
+  function timezonesActions() {
+    return (
+      <ActionPanel>
+        <ActionPanel.Submenu title="Add Timezones" icon={Icon.Globe}>
+          <ActionPanel.Section title="Selected">
+            {addedTimezones.map((tz) => (
+              <Action
+                key={tz}
+                icon={{
+                  source: Icon.CheckCircle,
+                  tintColor: Color.Green,
+                }}
+                title={`${formatZoneName(tz)} (${getTimezoneOffsetString(tz)})`}
+                onAction={() => toggleTimezone(tz)}
+              />
+            ))}
+          </ActionPanel.Section>
+          <ActionPanel.Section title="Others">
+            {allTimezones
+              ?.filter((tz: string) => !selectedTimezones?.includes(tz))
+              ?.map((tz: string) => {
+                const isSelected = selectedTimezones?.includes(tz);
+                return (
                   <Action
                     key={tz}
                     icon={{
-                      source: Icon.CheckCircle,
-                      tintColor: Color.Green,
+                      source: isSelected ? Icon.CheckCircle : Icon.Circle,
+                      tintColor: isSelected ? Color.Green : Color.SecondaryText,
                     }}
                     title={`${formatZoneName(tz)} (${getTimezoneOffsetString(tz)})`}
                     onAction={() => toggleTimezone(tz)}
                   />
-                ))}
-              </ActionPanel.Section>
-              <ActionPanel.Section title="Others">
-                {allTimezones
-                  ?.filter((tz: string) => !selectedTimezones?.includes(tz))
-                  ?.map((tz: string) => {
-                    const isSelected = selectedTimezones?.includes(tz);
-                    return (
-                      <Action
-                        key={tz}
-                        icon={{
-                          source: isSelected ? Icon.CheckCircle : Icon.Circle,
-                          tintColor: isSelected ? Color.Green : Color.SecondaryText,
-                        }}
-                        title={`${formatZoneName(tz)} (${getTimezoneOffsetString(tz)})`}
-                        onAction={() => toggleTimezone(tz)}
-                      />
-                    );
-                  })}
-              </ActionPanel.Section>
-            </ActionPanel.Submenu>
-            <Action
-              title={isCustom ? `Clear Custom Time` : `Set Custom Time`}
-              onAction={isCustom ? resetCustomTime : setCustomTime}
-              icon={Icon.Clock}
+                );
+              })}
+          </ActionPanel.Section>
+        </ActionPanel.Submenu>
+        <Action
+          title={isCustom ? `Clear Custom Time` : `Set Custom Time`}
+          onAction={isCustom ? resetCustomTime : setCustomTime}
+          icon={Icon.Clock}
+        />
+        <ActionPanel.Section>
+          {preferences.sortTimezones === "manually" && (
+            <Action.Push
+              title="Reorder Timezones"
+              target={
+                <OrderTimezones
+                  timezones={addedTimezones}
+                  onSort={async function (addedTimezones: string[]): Promise<void> {
+                    await updateSort(addedTimezones);
+                  }}
+                />
+              }
+              icon={Icon.Switch}
             />
-            {selectedTimezones?.length > 0 && (
-              <Action
-                title={`Remove Added Timezones`}
-                shortcut={{ modifiers: ["ctrl"], key: "x" }}
-                style={Action.Style.Destructive}
-                onAction={() => {
-                  confirmAlert({
-                    primaryAction: {
-                      title: "Remove All",
-                      style: Alert.ActionStyle.Destructive,
-                      onAction: () => {
-                        setSelectedTimezones([]);
-                      },
+          )}
+          {selectedTimezones?.length > 0 && (
+            <Action
+              title={`Remove Added Timezones`}
+              shortcut={{ modifiers: ["ctrl"], key: "x" }}
+              style={Action.Style.Destructive}
+              onAction={() => {
+                confirmAlert({
+                  primaryAction: {
+                    title: "Remove All",
+                    style: Alert.ActionStyle.Destructive,
+                    onAction: () => {
+                      setSelectedTimezones([]);
                     },
-                    title: `Are you sure you want remove all timezones?`,
-                  });
-                }}
-                icon={Icon.Eraser}
+                  },
+                  title: `Are you sure you want remove all timezones?`,
+                });
+              }}
+              icon={Icon.Eraser}
+            />
+          )}
+        </ActionPanel.Section>
+      </ActionPanel>
+    );
+  }
+
+  return (
+    <TimezoneCotext.Provider value={{ customTime: time }}>
+      {preferences.hideWorldMap ? (
+        <List>
+          {!selectedTimezones?.length && (
+            <>
+              <List.EmptyView
+                title="No Timezones Added"
+                description="Added timezones appear here"
+                actions={timezonesActions()}
               />
-            )}
-          </ActionPanel>
-        }
-        metadata={
-          <Detail.Metadata>
-            {!selectedTimezones?.length && (
-              <>
-                <Detail.Metadata.Label title={`No Timezones Added`} text={`Added timezones appear here`} />
-              </>
-            )}
-            {selectedTimezones?.map((zoneName, index) => {
-              const date = DateTime.fromJSDate(time.toJSDate()).setZone(zoneName);
-              // const hoursDiff = hoursDiffBetween(time, date);
-              return (
-                <Fragment key={index}>
-                  <Detail.Metadata.TagList title={`${formatZoneName(zoneName)} (${date.toFormat("ZZZZ")})`}>
-                    <Detail.Metadata.TagList.Item text={date.toFormat("ff")} />
-                    {/* <Detail.Metadata.TagList.Item
-                      color={hoursDiff[1] ? Color.Orange : Color.Green}
-                      text={`${hoursDiff[0]}`}
-                    /> */}
-                  </Detail.Metadata.TagList>
-                  <Detail.Metadata.Separator />
-                </Fragment>
-              );
-            })}
-          </Detail.Metadata>
-        }
-      />
+            </>
+          )}
+          {selectedTimezones?.map((zoneName, index) => {
+            const date = DateTime.fromJSDate(time.toJSDate()).setZone(zoneName);
+            // const hoursDiff = hoursDiffBetween(time, date);
+            return (
+              <Fragment key={index}>
+                <List.Item
+                  title={`${formatZoneName(zoneName)} (${date.toFormat("ZZZZ")})`}
+                  accessories={[{ tag: date.toFormat("ff") }]}
+                  actions={timezonesActions()}
+                ></List.Item>
+              </Fragment>
+            );
+          })}
+        </List>
+      ) : (
+        <Detail
+          markdown={markdown(time, isCustom)}
+          actions={timezonesActions()}
+          metadata={
+            <Detail.Metadata>
+              {!selectedTimezones?.length && (
+                <>
+                  <Detail.Metadata.Label title={`No Timezones Added`} text={`Added timezones appear here`} />
+                </>
+              )}
+              {selectedTimezones?.map((zoneName, index) => {
+                const date = DateTime.fromJSDate(time.toJSDate()).setZone(zoneName);
+                // const hoursDiff = hoursDiffBetween(time, date);
+                return (
+                  <Fragment key={index}>
+                    <Detail.Metadata.TagList title={`${formatZoneName(zoneName)} (${date.toFormat("ZZZZ")})`}>
+                      <Detail.Metadata.TagList.Item text={date.toFormat("ff")} />
+                      {/* <Detail.Metadata.TagList.Item
+                        color={hoursDiff[1] ? Color.Orange : Color.Green}
+                        text={`${hoursDiff[0]}`}
+                      /> */}
+                    </Detail.Metadata.TagList>
+                    <Detail.Metadata.Separator />
+                  </Fragment>
+                );
+              })}
+            </Detail.Metadata>
+          }
+        />
+      )}
     </TimezoneCotext.Provider>
+  );
+}
+
+function OrderTimezones(props: { timezones: string[]; onSort: (addedTimezones: string[]) => void }) {
+  const { timezones } = props;
+  const [timeZones, setTimeZones] = useState(timezones);
+
+  const moveUp = (index: number) => {
+    if (index > 0) {
+      const updatedTimezones = [...timeZones];
+      const temp = updatedTimezones[index];
+      updatedTimezones[index] = updatedTimezones[index - 1];
+      updatedTimezones[index - 1] = temp;
+      setTimeZones(updatedTimezones);
+      props.onSort(updatedTimezones);
+    }
+  };
+
+  const moveDown = (index: number) => {
+    if (index < timezones.length - 1) {
+      const updatedTimezones = [...timeZones];
+      const temp = updatedTimezones[index];
+      updatedTimezones[index] = updatedTimezones[index + 1];
+      updatedTimezones[index + 1] = temp;
+      setTimeZones(updatedTimezones);
+      props.onSort(updatedTimezones);
+    }
+  };
+
+  const remove = (index: number) => {
+    const updatedTimezones = [...timeZones];
+    updatedTimezones.splice(index, 1);
+    setTimeZones(updatedTimezones);
+    props.onSort(updatedTimezones);
+  };
+
+  return (
+    <List navigationTitle="Reorder Timezones">
+      {timeZones &&
+        timeZones.map((tz, index) => {
+          return (
+            <List.Item
+              key={tz}
+              title={tz}
+              icon={Icon.Clock}
+              actions={
+                <ActionPanel>
+                  {index > 0 && (
+                    <Action
+                      title="Move Up"
+                      shortcut={{ modifiers: ["cmd", "opt"], key: "arrowUp" }}
+                      icon={Icon.ChevronUp}
+                      onAction={() => moveUp(index)}
+                    ></Action>
+                  )}
+                  {index < timezones.length - 1 && (
+                    <Action
+                      title="Move Down"
+                      shortcut={{ modifiers: ["cmd", "opt"], key: "arrowDown" }}
+                      icon={Icon.ChevronDown}
+                      onAction={() => moveDown(index)}
+                    ></Action>
+                  )}
+                  <Action
+                    title="Remove Timezone"
+                    style={Action.Style.Destructive}
+                    icon={Icon.Trash}
+                    shortcut={{ modifiers: ["ctrl"], key: "x" }}
+                    onAction={async () => {
+                      if (await confirmAlert({ title: `Are you sure you want to delete "${tz}"?` })) {
+                        remove(index);
+                      }
+                    }}
+                  />
+                </ActionPanel>
+              }
+            />
+          );
+        })}
+    </List>
   );
 }
 

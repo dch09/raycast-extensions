@@ -1,24 +1,23 @@
-import { showToast, Toast } from "@raycast/api";
-import { runAppleScript } from "run-applescript";
-import { buildScriptEnsuringTimIsRunning, checkIfTimInstalled, showNotInstalledToast } from "./utils";
+import { Toast, showToast } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 
-export default async () => {
-  const timAvailable = await checkIfTimInstalled();
-  if (!timAvailable) return showNotInstalledToast();
+import { isNoActiveTaskError, isNoActiveTimerToToggleError } from "./helpers/error";
+import { getActiveTask, installedWrapper, toggleTimer } from "./lib/tim";
 
+export default installedWrapper(async () => {
   try {
-    const script = buildScriptEnsuringTimIsRunning(`toggletimer`);
-    await runAppleScript(script);
-    showToast({
-      title: "Success",
-      message: "Timer toggled",
-      style: Toast.Style.Success,
-    });
+    await toggleTimer();
+    const id = await getActiveTask();
+    await showToast({ title: id ? "Timer stopped" : "Timer started", style: Toast.Style.Success });
   } catch (error) {
-    showToast({
-      title: "Error",
-      message: "Could not toggle timer",
-      style: Toast.Style.Failure,
-    });
+    if (isNoActiveTimerToToggleError(error)) {
+      return showToast({ title: "No active timer to toggle", style: Toast.Style.Failure });
+    }
+
+    if (isNoActiveTaskError(error)) {
+      return showToast({ title: "No active task", style: Toast.Style.Failure });
+    }
+
+    await showFailureToast(error);
   }
-};
+});
